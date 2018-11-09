@@ -14,4 +14,4 @@ lists.example.com:
       title: My lovely service
       create_list: listmaster
       color_6: '#FF0000'
-    server: local-sympa-ubuntu16
+    server: local-sympa

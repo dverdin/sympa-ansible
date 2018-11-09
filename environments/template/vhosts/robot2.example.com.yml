@@ -14,4 +14,4 @@ robot2.example.com:
       title: My increasingly cool service
       create_list: listmaster
       color_6: '#0431B4'
-    server: local-sympa-ubuntu16
+    server: local-sympa
