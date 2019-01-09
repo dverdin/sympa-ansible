@@ -55,6 +55,7 @@ sympa:
   web:
     domain: lists.example.com
   db:
+    type: mysql
     app_user: sympa
   config:
     color_0: '#F7F7F7'
