@@ -210,7 +210,6 @@ by default, the environment generation script creates four domain descriptions:
 Example of one such file:
 
 ```
----
 robot1.example.com:
   common:
     web:
@@ -268,6 +267,109 @@ So the precedence is actually:
   2- second in group_vars,
   3- third in role defaults.
 
+In the `ansible.cfg` file, we setup the following parameter: `hash_behaviour=merge`.
+This will trigger automatic merge of hashes. That way, you can specify in the environment only the part of hashes that are
+specific to your setup. The rest of the hash keys will default to whatever can be found in the `defaults/main.yml` of the current role.
+
+Here is the list of the parameters used in the playbook, presented as YAML data:
+
+## global parameters
+
+ - `install_prefix`: the root where applications should be installed. Usefull if you're combining this playbook with others to install other appplications than Sympa.
+ - `db.root_user`: the username of the database global root user.
+ - `db.root_password`: the password of the database global root user.
+ 
+
+## Sympa namespace
+
+### unix_*
+
+`sympa.unix_user` and `sympa.unix_group` define respectively the user and group under which the Sympa processes are executed.
+
+### installation parameters
+
+A set of parameters define how Sympa will be installed.
+
+  - `sympa.install_from_repository` : if set to 1, Sympa will be installed from a checkout of a Git repository. Otherwise, a tar.gz is downloaded.
+  - `sympa.install_dir_name`: the name of the directory where Sympa will be installed. It is a sub_directory of the `install_prefix` global parameter.
+
+#### install from repository
+
+You need to set the following parameters:
+
+  - `sympa.install_from_repository`: value 1
+  - `sympa.version`: the version of Sympa, from 6.1.17 to the latest unstable. Only used to find the patches.
+  - `sympa.repository`: the URL of the git repository, to be used for the `git clone` operation.
+  - `sympa.repository_version`: either `HEAD` or a commit hash.
+  - `sympa.apply_patches`: if set to 1, any patch located in roles/sympa/patches/`version` will be applied to the extracted sources before the install process.
+
+#### install from archive
+
+You need to set the following parameters:
+  
+  - `sympa.install_from_repository`: value 0
+  - `sympa.version`: the version of Sympa, from 6.1.17 to the latest unstable.
+  - `sympa.apply_patches`: if set to 1, any patch located in roles/sympa/patches/`version` will be applied to the extracted sources before the install process.
+  - `sympa.source`: the extracted archive must have the URL: `source`/sympa-`version`.tar.gz
+
+### mail setup
+
+for now, only Postfix is supported.
+The mail setup is the same as the one proposed by the
+[Sympa documentation for multiple domains support](https://sympa-community.github.io/manual/install/configure-mail-server-postfix.html#virtual-domain-setting).
+
+  - `sympa.alias_directory`: location of the file where list alias file will be stored
+  - `sympa.alias_file`: name of the alias file
+
+### database setup
+
+  - `sympa.db.type`: ony two values: `mysql` or `Pg`. Defines which RDBMS to use as Sympa database backend.
+  - `sympa.db.app_user`: username used by Sympa for accessing its own database.
+  - `sympa.db.app_password`: password used by Sympa for accessing its own database.
+  - `sympa.db.readonly_user`: a user with readonly privleges to Sympa database. Can be usefull.
+  - `sympa.db.readonly_password`: a password for the user with readonly privleges to Sympa database.
+
+### Sympa configuration
+
+All parameters can't be defined in the playbook. Only the few below. Don't hesitate to change the `roles/sympa/templates/sympa.conf.j2` to add more.
+
+  - `sympa.config.color_*`: the colors to be used for Sympa web interface.
+  - `sympa.config.language`: the default server language.
+
+### Sympa patchs
+
+  - `lists_path`: full path to the directory containing the lists config.
+  - `arc_path`: full path to the directory where the lists archives will be stored.
+
+
+## Common namespace
+
+### Web configuration
+
+For now, only Apache is configured.
+
+  - `common.ip`: ("*" by default) IP for apache vhost configuration
+  - `common.port`: SSL port for Apache
+  - `common.ssl.enabled`: Set to 1 to enable ssl configuration
+  - `common.ssl.certificate`: Patch to the vhost certificate to install; Overriden by vhosts configuration.
+  - `common.ssl.selfsignedcertificate`: Set to 1 if the certificate is self-signed: it implies a configuration change.
+  - `common.ssl.key`: Private key for the certificate
+  - `common.web.domain`: web domain
+  - `common.web.admin`: web admin email address
+
+### Mail configuration
+
+  - `common.mail.domain`: mail domain (overriden by vhosts configuration)
+  - `common.mail.force_smtp_route`: if set to 1, any outgoing SMTP session will be made towards `common.mail.outgoing_server` without DNS resolution.
+  - `common.mail.incoming_smtp`: the IP from which incoming mail should come to the server. Leave blak if you accept any incoming server.
+  - `common.mail.outgoing_server`: See `common.mail.force_smtp_route`.
+  - `common.mail.enable_check_smtp`: Optional activation of a program sending mails to check whether mails arrive or not.
+
+### Global common parameters
+
+  - `common.admins`: the default admins for all applictions, including Sympa. Overriden by vhosts configuration.
+
+## Example file 
 
 ```
 sympa:
@@ -281,11 +383,8 @@ sympa:
   install_dir_name: sympa
   apply_patches: 1
   mail:
-    domain: lists.example.com
     alias_directory: /etc/mail
     alias_file: sympa_transport
-  web:
-    domain: lists.example.com
   db:
     type: mysql
     app_user: sympa
@@ -333,7 +432,6 @@ common:
     incoming_smtp: '192.168.66.0'
     outgoing_server: '192.168.66.0'
     enable_check_smtp: 0
-    domain: lists.example.com
   admins:
     - david@example.com
     - etienne@example.com
@@ -560,11 +658,6 @@ of the environment.
 The included "create_new_environment.sh" script can be used to create the encryption key for an environment and to
 generate the secrets required by the environment in one go. The specification for the secrets to create and whether 
 to use encryption in configured in the "environment.conf" in the template.
-
-Ansible-tools promotes a setup for encrypting secrets that is different from the 
-[Ansible Vault](http://docs.ansible.com/ansible/playbooks_vault.html). The Ansible vault feature encrypts an entire 
-.yml file with variable names and values, whereas the ansible-tools approach encrypts just the values en decrypts them 
-just before they are needed. Both use the [python-keyczar](https://pypi.python.org/pypi/python-keyczar) for encryption.
 
 When talking about a **vault** in the rest of this document this refers to the way ansible-tools uses keyczar to work 
 with encrypted values, not the Ansible playbook vault.
